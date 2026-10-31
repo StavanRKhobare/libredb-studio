@@ -663,18 +663,32 @@ describe("Sidebar", () => {
   });
 
   /**
-   * The key browser is a SECOND READING of the same connection, offered where the engine declares
-   * one and absent everywhere else.
-   *
-   * The tab pair is driven by `capabilities.keyScan` and never by the connection's type, which is
-   * the rule the whole db layer runs on: a provider that gained the walk without being one of the
-   * engines this was written for gets the panel, and one that merely LOOKS like such an engine does
-   * not.
-   */
-  /**
    * #1986: the reader's way to see a table another client made. The tree's own `refresh` is what
    * the press reaches, not the shell's counter, which would also mark every Source tab stale.
+   *
+   * IT LIVES IN THE HEADER, beside the other active-connection action, because a control pressed
+   * this rarely must not cost the panel a row: on an engine with no Objects / Keys switch the
+   * panel below the header is the tree and nothing else, as it was before the control existed.
    */
+  test("the refresh control sits in the header, just before the diagram control", () => {
+    const { getByRole, getByTitle } = render(<Sidebar {...createDefaultProps()} />);
+    const control = getByRole("button", { name: "Read the objects again" });
+
+    expect(control.parentElement).toBe(getByRole("button", { name: "New connection" }).parentElement);
+    expect(control.nextElementSibling).toBe(getByTitle("Show ERD Diagram"));
+  });
+
+  test("the refresh control is drawn only while a tree is", () => {
+    const noConnection = render(<Sidebar {...createDefaultProps({ activeConnection: null })} />);
+    expect(noConnection.queryByRole("button", { name: "Read the objects again" })).toBeNull();
+    noConnection.unmount();
+
+    // A declaration still being read mounts no tree, so there is nothing to ask.
+    const pending = render(<Sidebar {...createDefaultProps({ metadata: null })} />);
+    expect(pending.queryByTestId("object-tree")).toBeNull();
+    expect(pending.queryByRole("button", { name: "Read the objects again" })).toBeNull();
+  });
+
   test("the refresh control asks the tree to read again", () => {
     treeRefresh.mockClear();
     const { getByRole } = render(<Sidebar {...createDefaultProps()} />);
@@ -690,34 +704,55 @@ describe("Sidebar", () => {
     expect(treeRefresh).toHaveBeenCalledTimes(1);
   });
 
-  test("the refresh control sits beside the switch, and is not drawn while Keys is shown", () => {
+  test("the refresh control is not drawn while Keys is shown, and returns with the tree", () => {
     const { getByRole, queryByRole } = render(<Sidebar {...createDefaultProps({ metadata: walkMetadata() })} />);
-    const control = getByRole("button", { name: "Read the objects again" });
-    expect(control.parentElement).toBe(getByRole("tablist", { name: "Sidebar view" }).parentElement);
+    expect(getByRole("button", { name: "Read the objects again" })).toBeDefined();
 
     fireEvent.click(getByRole("tab", { name: "Keys" }));
     expect(queryByRole("button", { name: "Read the objects again" })).toBeNull();
+
+    fireEvent.click(getByRole("tab", { name: "Objects" }));
+    expect(getByRole("button", { name: "Read the objects again" })).toBeDefined();
   });
 
   test("a deferred tree's refresh control is disabled and reads nothing", () => {
     treeRefresh.mockClear();
-    const { getByRole } = render(<Sidebar {...createDefaultProps({ objectScanDeferred: true })} />);
+    const { getByRole, getByTestId } = render(<Sidebar {...createDefaultProps({ objectScanDeferred: true })} />);
     const control = getByRole("button", { name: "Read the objects again" }) as HTMLButtonElement;
     expect(control.disabled).toBe(true);
     fireEvent.click(control);
     expect(treeRefresh).not.toHaveBeenCalled();
+    // Deferred or not, the panel below the header is the tree alone.
+    const treeWrapper = getByTestId("object-tree").parentElement!;
+    expect(Array.from(treeWrapper.parentElement!.children)).toEqual([treeWrapper]);
   });
 
+  /**
+   * The key browser is a SECOND READING of the same connection, offered where the engine declares
+   * one and absent everywhere else.
+   *
+   * The tab pair is driven by `capabilities.keyScan` and never by the connection's type, which is
+   * the rule the whole db layer runs on: a provider that gained the walk without being one of the
+   * engines this was written for gets the panel, and one that merely LOOKS like such an engine does
+   * not.
+   */
   test("offers the key browser only where the engine declares a key-space walk", () => {
     const withoutWalk = render(<Sidebar {...createDefaultProps()} />);
-    // A tree engine keeps the sidebar it had: no tab strip at all, rather than a disabled one.
+    // A tree engine keeps the sidebar it had: no tab strip at all, rather than a disabled one, and
+    // no row of any other kind either. The panel holds the tree's wrapper and nothing else.
     expect(withoutWalk.queryByRole("tab", { name: "Keys" })).toBeNull();
     expect(withoutWalk.queryByTestId("key-browser")).toBeNull();
+    const treeWrapper = withoutWalk.getByTestId("object-tree").parentElement!;
+    expect(Array.from(treeWrapper.parentElement!.children)).toEqual([treeWrapper]);
     withoutWalk.unmount();
 
     const withWalk = render(<Sidebar {...createDefaultProps({ metadata: walkMetadata() })} />);
     expect(withWalk.getByRole("tab", { name: "Objects" })).toBeDefined();
     expect(withWalk.getByRole("tab", { name: "Keys" })).toBeDefined();
+    // The switch is a row of the panel itself, and holds the two tabs and nothing else.
+    const tablist = withWalk.getByRole("tablist", { name: "Sidebar view" });
+    expect(tablist.parentElement).toBe(withWalk.getByTestId("object-tree").parentElement!.parentElement);
+    expect(Array.from(tablist.children).map((child) => child.getAttribute("role"))).toEqual(["tab", "tab"]);
     // The tree is what opens, because the panel is an addition rather than a replacement.
     expect(withWalk.queryByTestId("object-tree")).not.toBeNull();
     expect(withWalk.queryByTestId("key-browser")).toBeNull();

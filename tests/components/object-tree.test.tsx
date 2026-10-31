@@ -255,12 +255,15 @@ describe("ObjectTree refresh handle", () => {
     expect(row(/app/).getAttribute("aria-expanded")).toBe("true");
   });
 
-  test("a deferred tree reads nothing when asked", async () => {
+  // The handle is the guarded `refresh` and not a read of its own: a deferred tree still hands one
+  // over, and pressing it reads nothing, which the token test above pins for the shell's counter.
+  test("a deferred tree hands over its refresh, and reads nothing when asked", async () => {
     const calls = installFetch(routesFor({}, { table: { count: 2 }, view: { count: 0 } }));
     const handle = createRef<ObjectTreeHandle>();
     render(<ObjectTree ref={handle} connection={connectionOf("pg")} capabilities={oneLevel} deferred />);
     await screen.findByTestId("tree-deferred");
-    act(() => handle.current?.refresh());
+    expect(handle.current).not.toBeNull();
+    act(() => handle.current!.refresh());
     expect(calls).toHaveLength(0);
   });
 });

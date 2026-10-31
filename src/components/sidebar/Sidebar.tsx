@@ -406,6 +406,25 @@ export const Sidebar = React.memo(function Sidebar({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {/*
+            A table made by another client reaches the tree only through this (#1986): the shell
+            re-reads for statements IT ran. In the header because a control pressed this rarely must
+            not cost the panel a row. Drawn only while the tree is the reading on screen, and
+            disabled while it is deferred, so it never starts a read the reader opted out of;
+            `Load objects` is the way in there.
+          */}
+          {activeConnection && metadata && !showingKeys && (
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              aria-label="Read the objects again"
+              title="Read the objects again"
+              disabled={objectScanDeferred}
+              onClick={() => treeRef.current?.refresh()}
+            >
+              <RefreshCw strokeWidth={1.5} aria-hidden="true" className="w-3.5 h-3.5" />
+            </button>
+          )}
           {/* Not on a Cypher connection: its relationship types are no tables (SR20). */}
           {activeConnection && offersSchemaDiagram(metadata?.capabilities) && (
             <button
@@ -483,52 +502,32 @@ export const Sidebar = React.memo(function Sidebar({
         <div className="flex-1 min-h-0 px-2 pb-4 flex flex-col">
           {metadata ? (
             <>
-              <div className="flex items-center gap-1 pb-2">
-                {keyScan !== undefined && (
-                  <div className="flex items-center gap-1" role="tablist" aria-label="Sidebar view">
-                    {(["objects", "keys"] as const satisfies readonly SidebarView[]).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        role="tab"
-                        aria-selected={view === option}
-                        // The reader's choice, recorded WITH the connection they made it on, so the
-                        // engine's default never overrides it and it never becomes another engine's
-                        // default. Mounting the panel is the render's job, not this handler's.
-                        onClick={() =>
-                          setChosenView({ connectionId, view: option, enumeratedNothing: enumeratesNothing })
-                        }
-                        className={cn(
-                          "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
-                          view === option
-                            ? "bg-accent text-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                        )}
-                      >
-                        {option === "objects" ? "Objects" : "Keys"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/*
-                  A table made by another client reaches the tree only through this (#1986): the
-                  shell re-reads for statements IT ran. Disabled while deferred, so it never starts
-                  a read the reader opted out of; `Load objects` is the way in there.
-                */}
-                {!showingKeys && (
-                  <button
-                    type="button"
-                    data-testid="object-tree-refresh"
-                    aria-label="Read the objects again"
-                    title="Read the objects again"
-                    disabled={objectScanDeferred}
-                    onClick={() => treeRef.current?.refresh()}
-                    className="ml-auto p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <RefreshCw strokeWidth={1.5} aria-hidden="true" className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              {keyScan !== undefined && (
+                <div className="flex items-center gap-1 pb-2" role="tablist" aria-label="Sidebar view">
+                  {(["objects", "keys"] as const satisfies readonly SidebarView[]).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === option}
+                      // The reader's choice, recorded WITH the connection they made it on, so the
+                      // engine's default never overrides it and it never becomes another engine's
+                      // default. Mounting the panel is the render's job, not this handler's.
+                      onClick={() =>
+                        setChosenView({ connectionId, view: option, enumeratedNothing: enumeratesNothing })
+                      }
+                      className={cn(
+                        "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                        view === option
+                          ? "bg-accent text-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                    >
+                      {option === "objects" ? "Objects" : "Keys"}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/*
                 THE KEY PANEL IS HIDDEN RATHER THAN UNMOUNTED, and the tree is drawn beside it while it
                 is: a sample that took a walk of the key space to build is not something to throw away
