@@ -87,6 +87,12 @@ describe("MCP_STATEMENT_ARMS", () => {
     expect(mcpStatementToolFor("s3")).toBeNull();
     expect(MCP_STATEMENT_ARMS.fsquery).toBeNull();
     expect(mcpStatementToolFor("firestore")).toBeNull();
+    expect(MCP_STATEMENT_ARMS.snmpget).toBeNull();
+    expect(mcpStatementToolFor("snmp")).toBeNull();
+    expect(MCP_STATEMENT_ARMS.netconfrpc).toBeNull();
+    expect(mcpStatementToolFor("netconf")).toBeNull();
+    expect(MCP_STATEMENT_ARMS.modbusread).toBeNull();
+    expect(mcpStatementToolFor("modbus")).toBeNull();
   });
 
   test("is built from the languages' MCP facets, one arm per declared facet, in the registry's order", () => {
@@ -419,6 +425,9 @@ describe("the tool each engine is read with", () => {
       kafkaread: null,
       s3api: null,
       fsquery: null,
+      snmpget: null,
+      netconfrpc: null,
+      modbusread: null,
     };
     expect(servingStatementArms(arms)).toEqual([RUN_READ_QUERY_ARM]);
     const registerTool = mock((_name: string) => undefined);

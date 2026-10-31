@@ -165,6 +165,9 @@ describe("the plan-estimate operation of each language", () => {
       kafkaread: null,
       s3api: null,
       fsquery: null,
+      snmpget: null,
+      netconfrpc: null,
+      modbusread: null,
     });
     expect(Object.isFrozen(AGENT_PLAN_ESTIMATE_OPERATION)).toBe(true);
   });

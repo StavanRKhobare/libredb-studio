@@ -145,8 +145,10 @@ const PONG_REPLY = "PONG";
  * - `HELLO 3` switched the reply protocol and ioredis raised "Protocol error, got \"%\"".
  * `SWAPDB`, `MOVE` and a script's `redis.call('SELECT', n)` were measured too and leave the
  * connection where it was, so they are not listed.
+ * `READWRITE` cleared the cluster `READONLY` mode (#2031): every later replica read answered `MOVED`
+ * until a reconnect (measured 2026-10-30 on a redis 8.2.11 cluster replica, ioredis 5.11.1).
  */
-const SESSION_STATE_COMMANDS: ReadonlySet<string> = new Set(["SELECT", "RESET", "AUTH", "HELLO"]);
+const SESSION_STATE_COMMANDS: ReadonlySet<string> = new Set(["SELECT", "RESET", "AUTH", "HELLO", "READWRITE"]);
 
 /**
  * Commands after which the shared client stops answering later requests, refused by `query()`
@@ -1472,6 +1474,11 @@ export class RedisProvider extends BaseDatabaseProvider {
       password: this.config.password || undefined,
       connectTimeout: this.queryTimeout,
       lazyConnect: true,
+      // ioredis's cluster READONLY mode (#2031), not the connection's `readOnly` field (#1089).
+      // A Cluster-mode replica answers every command with a MOVED redirect unless told this.
+      // A non-cluster server refuses the command itself and a primary ignores it.
+      // It only changes whether a REPLICA serves a read locally instead of redirecting.
+      readOnly: true,
       // An integer reply as its digits rather than a JS number. Measured on redis 8.10.2
       // through ioredis 5.11.1: `INCR` on 9223372036854775806 was shown as
       // `(integer) 9223372036854778000` without this, a counter rounded with no error. The

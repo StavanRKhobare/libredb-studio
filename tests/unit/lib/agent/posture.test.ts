@@ -90,6 +90,30 @@ describe("agentPosture in plan mode", () => {
     expect(onMongo).toEqual(onPostgres);
   });
 
+  /**
+   * Modbus's grounding is the connection's register map, which sends the device nothing, but opening the connection
+   * dials it, so "nothing else reaches the database" was not true there. Its language pack names the dial for what it
+   * is, and the plan posture is otherwise the shared one.
+   */
+  test("on Modbus it names the dial that opening the connection makes, and says no request is sent", () => {
+    const onModbus = agentPosture({
+      mode: "planning",
+      engine: "modbus",
+      engineLabel: getDBConfig("modbus").label,
+      handover: true,
+    });
+
+    expect(onModbus.tone).toBe("safe");
+    expect(onModbus.headline).toBe("Executes nothing it drafts");
+    expect(onModbus.qualifier).toBe(
+      "the register map grounds it; opening the connection dials the device, and no request is sent to it",
+    );
+    expect(onModbus.title).toBe("Plan mode drafts, and never runs what it drafted");
+    expect(onModbus.body).toBe(
+      "Plan mode never sends the request it wrote. It is grounded on the connection's register map, which is read without a request to the device, and it is where the inventory in Run details came from. Opening the connection to read it dials the device's port and closes the connection again, and no Modbus request is sent to the device.",
+    );
+  });
+
   test("the hand-over tick cannot widen plan mode", () => {
     const ticked = agentPosture({
       mode: "planning",
@@ -431,6 +455,32 @@ describe("the posture on Google Cloud Firestore", () => {
       "Studio's agent client holds only three kinds of request, a collection id listing, a count that nothing narrows and a read of one named document's times, so it cannot",
     );
     expect(posture.body).not.toContain("those three kinds");
+  });
+});
+
+describe("the posture on SNMP", () => {
+  const posture = agentPosture({ mode: "agent", engine: "snmp", engineLabel: "SNMP", handover: false });
+
+  test("names exactly what the agent reads: the device's values through four named commands, never a write", () => {
+    expect(posture.qualifier).toBe(
+      `${STATEMENT_BUDGETS.maxResultRows} rows and ${STATEMENT_BUDGETS.statementTimeoutMs / 1000} s per read, over a client that sends only Get, GetNext and GetBulk, with the SNMP security modules withheld`,
+    );
+    expect(posture.body).toContain(
+      "each one of the console's four commands, get, next, walk and table, and answers the device's values as the console renders them",
+    );
+    expect(posture.body).toContain("Studio's agent client holds only the Get, GetNext and GetBulk requests");
+    expect(posture.body).not.toMatch(/metadata only|those three/);
+  });
+
+  test("names every withheld module, and why, and counts none of them", () => {
+    expect(posture.body).toContain(
+      "Withheld, because they hold community strings, user names, keys and access rules, are SNMP-TARGET-MIB, SNMP-NOTIFICATION-MIB, SNMP-PROXY-MIB, SNMP-USER-BASED-SM-MIB, SNMP-VIEW-BASED-ACM-MIB, SNMP-COMMUNITY-MIB, SNMP-SSH-TM-MIB, SNMP-TSM-MIB, SNMP-TLS-TM-MIB, SNMP-USM-DH-OBJECTS-MIB and Net-SNMP's NET-SNMP-VACM-MIB;",
+    );
+    expect(posture.body).toContain(
+      "a walk that covers one steps over it and names it, and a walk inside one is refused",
+    );
+    expect(posture.body).not.toMatch(/\b(?:Six|six|Eleven|eleven) modules\b/);
+    expect(posture.body).toContain("The community never reaches an answer.");
   });
 });
 

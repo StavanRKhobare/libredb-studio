@@ -84,6 +84,24 @@ describe("fenceTagEngine", () => {
     expect(fenceTagEngine("firestore")).toBe("firestore");
   });
 
+  test("modbusread names modbus, the agent's name for the only read request language Modbus runs", () => {
+    expect(fenceTagEngine("modbusread")).toBe("modbus");
+    expect(isQueryFenceTag("modbusread")).toBe(true);
+    expect(fenceTagEngine("modbus")).toBe("modbus");
+  });
+
+  test("netconfrpc names netconf, the agent's name for the only read request language NETCONF runs", () => {
+    expect(fenceTagEngine("netconfrpc")).toBe("netconf");
+    expect(isQueryFenceTag("netconfrpc")).toBe(true);
+    expect(fenceTagEngine("netconf")).toBe("netconf");
+  });
+
+  test("snmpget names snmp, the agent's name for the only read command language SNMP runs", () => {
+    expect(fenceTagEngine("snmpget")).toBe("snmp");
+    expect(isQueryFenceTag("snmpget")).toBe(true);
+    expect(fenceTagEngine("snmp")).toBe("snmp");
+  });
+
   test("etcdctl names etcd, the agent's name for the only command language etcd runs", () => {
     expect(fenceTagEngine("etcdctl")).toBe("etcd");
     expect(isQueryFenceTag("etcdctl")).toBe(true);
