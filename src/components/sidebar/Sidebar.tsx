@@ -5,9 +5,14 @@ import { DatabaseConnection } from "@/lib/types";
 import { keyScanShape, offersSchemaDiagram, type DatabaseObject } from "@/lib/db/types";
 import type { ProviderMetadata } from "@/hooks/use-provider-metadata";
 import { connectionPulseTitle, type ConnectionPulse } from "@/hooks/use-connection-pulse";
-import { Plus, Zap, Layers, LoaderCircle, CircleAlert } from "lucide-react";
+import { Plus, Zap, Layers, LoaderCircle, CircleAlert, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ObjectTree, type ObjectSource, type TreeRowActionHandlers } from "@/components/object-tree";
+import {
+  ObjectTree,
+  type ObjectSource,
+  type ObjectTreeHandle,
+  type TreeRowActionHandlers,
+} from "@/components/object-tree";
 import { KeyBrowser, type KeyPatternRequest } from "@/components/key-browser";
 import { prefixPattern } from "@/components/key-browser/tree";
 import { containerDepth, enumerableKinds } from "@/lib/db/object-kinds";
@@ -375,6 +380,13 @@ export const Sidebar = React.memo(function Sidebar({
     },
     [connectionId, keyShape, metadata],
   );
+  /**
+   * The mounted tree, so the refresh control can ask it to read again (#1986).
+   *
+   * The tree's own `refresh` rather than the shell's `objectRefreshToken`: that counter also marks
+   * every open Source tab stale, and pressing this says nothing about any definition.
+   */
+  const treeRef = React.useRef<ObjectTreeHandle>(null);
   const actions = React.useMemo<TreeRowActionHandlers>(
     // The panel's own item is offered only where the panel exists: the row menu's gate asks the
     // DECLARATION whether a row may be walked, and this asks whether this shell can show the walk.
@@ -471,32 +483,52 @@ export const Sidebar = React.memo(function Sidebar({
         <div className="flex-1 min-h-0 px-2 pb-4 flex flex-col">
           {metadata ? (
             <>
-              {keyScan !== undefined && (
-                <div className="flex items-center gap-1 pb-2" role="tablist" aria-label="Sidebar view">
-                  {(["objects", "keys"] as const satisfies readonly SidebarView[]).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="tab"
-                      aria-selected={view === option}
-                      // The reader's choice, recorded WITH the connection they made it on, so the
-                      // engine's default never overrides it and it never becomes another engine's
-                      // default. Mounting the panel is the render's job, not this handler's.
-                      onClick={() =>
-                        setChosenView({ connectionId, view: option, enumeratedNothing: enumeratesNothing })
-                      }
-                      className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
-                        view === option
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                    >
-                      {option === "objects" ? "Objects" : "Keys"}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex items-center gap-1 pb-2">
+                {keyScan !== undefined && (
+                  <div className="flex items-center gap-1" role="tablist" aria-label="Sidebar view">
+                    {(["objects", "keys"] as const satisfies readonly SidebarView[]).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="tab"
+                        aria-selected={view === option}
+                        // The reader's choice, recorded WITH the connection they made it on, so the
+                        // engine's default never overrides it and it never becomes another engine's
+                        // default. Mounting the panel is the render's job, not this handler's.
+                        onClick={() =>
+                          setChosenView({ connectionId, view: option, enumeratedNothing: enumeratesNothing })
+                        }
+                        className={cn(
+                          "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                          view === option
+                            ? "bg-accent text-foreground"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        {option === "objects" ? "Objects" : "Keys"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/*
+                  A table made by another client reaches the tree only through this (#1986): the
+                  shell re-reads for statements IT ran. Disabled while deferred, so it never starts
+                  a read the reader opted out of; `Load objects` is the way in there.
+                */}
+                {!showingKeys && (
+                  <button
+                    type="button"
+                    data-testid="object-tree-refresh"
+                    aria-label="Read the objects again"
+                    title="Read the objects again"
+                    disabled={objectScanDeferred}
+                    onClick={() => treeRef.current?.refresh()}
+                    className="ml-auto p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <RefreshCw strokeWidth={1.5} aria-hidden="true" className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               {/*
                 THE KEY PANEL IS HIDDEN RATHER THAN UNMOUNTED, and the tree is drawn beside it while it
                 is: a sample that took a walk of the key space to build is not something to throw away
@@ -518,6 +550,7 @@ export const Sidebar = React.memo(function Sidebar({
               {!showingKeys && (
                 <div className="flex-1 min-h-0">
                   <ObjectTree
+                    ref={treeRef}
                     connection={activeConnection}
                     capabilities={metadata.capabilities}
                     labels={metadata.labels}

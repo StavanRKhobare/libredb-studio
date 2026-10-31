@@ -11,6 +11,8 @@ let capturedReorderHandler: unknown;
 let capturedGroupProps: Record<string, unknown> = {};
 /** The row menu's Browse Keys item, as the tree received it from the sidebar. */
 let capturedBrowseKeys: ((object: { name: string; path: readonly string[] }) => void) | undefined;
+/** The tree's `refresh`, as the sidebar reaches it through the tree's ref (#1986). */
+const treeRefresh = mock(() => {});
 
 // Mock child components to isolate Sidebar logic
 mock.module("@/components/sidebar/ConnectionsList", () => ({
@@ -55,6 +57,7 @@ mock.module("@/components/object-tree", () => ({
           }
         | undefined
     )?.onBrowseKeys;
+    React.useImperativeHandle(props.ref, () => ({ refresh: treeRefresh }));
     return React.createElement(
       "div",
       {
@@ -142,6 +145,7 @@ mock.module("@radix-ui/react-scroll-area", () => {
 
 import { describe, test, expect, afterEach } from "bun:test";
 import { render, fireEvent, cleanup, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 
 import { mockPostgresConnection, mockMySQLConnection } from "../../fixtures/connections";
@@ -667,6 +671,43 @@ describe("Sidebar", () => {
    * engines this was written for gets the panel, and one that merely LOOKS like such an engine does
    * not.
    */
+  /**
+   * #1986: the reader's way to see a table another client made. The tree's own `refresh` is what
+   * the press reaches, not the shell's counter, which would also mark every Source tab stale.
+   */
+  test("the refresh control asks the tree to read again", () => {
+    treeRefresh.mockClear();
+    const { getByRole } = render(<Sidebar {...createDefaultProps()} />);
+    fireEvent.click(getByRole("button", { name: "Read the objects again" }));
+    expect(treeRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("the refresh control works from the keyboard", async () => {
+    treeRefresh.mockClear();
+    const { getByRole } = render(<Sidebar {...createDefaultProps()} />);
+    getByRole("button", { name: "Read the objects again" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(treeRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("the refresh control sits beside the switch, and is not drawn while Keys is shown", () => {
+    const { getByRole, queryByRole } = render(<Sidebar {...createDefaultProps({ metadata: walkMetadata() })} />);
+    const control = getByRole("button", { name: "Read the objects again" });
+    expect(control.parentElement).toBe(getByRole("tablist", { name: "Sidebar view" }).parentElement);
+
+    fireEvent.click(getByRole("tab", { name: "Keys" }));
+    expect(queryByRole("button", { name: "Read the objects again" })).toBeNull();
+  });
+
+  test("a deferred tree's refresh control is disabled and reads nothing", () => {
+    treeRefresh.mockClear();
+    const { getByRole } = render(<Sidebar {...createDefaultProps({ objectScanDeferred: true })} />);
+    const control = getByRole("button", { name: "Read the objects again" }) as HTMLButtonElement;
+    expect(control.disabled).toBe(true);
+    fireEvent.click(control);
+    expect(treeRefresh).not.toHaveBeenCalled();
+  });
+
   test("offers the key browser only where the engine declares a key-space walk", () => {
     const withoutWalk = render(<Sidebar {...createDefaultProps()} />);
     // A tree engine keeps the sidebar it had: no tab strip at all, rather than a disabled one.
